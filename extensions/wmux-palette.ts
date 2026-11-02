@@ -301,7 +301,7 @@ export default function wmuxPalette(pi: ExtensionAPI) {
   // setting a wmux session left behind, so Windows Terminal keeps its own colours.
   if (!IN_WMUX) {
     pi.on("session_start", async (_event, ctx) => {
-      if (pi.getSettings().theme === THEME_NAME) {
+      if (ctx.hasUI && pi.getSettings().theme === THEME_NAME) {
         const back = readSettingFile(ORIGINAL_THEME_FILE) ?? "system";
         const result = ctx.ui.setTheme(back);
         ctx.ui.notify?.(result.success ? `wmux palette: not inside wmux, theme back to "${back}"` : "wmux palette: not inside wmux, but the theme could not be put back", result.success ? "info" : "warning");
@@ -361,6 +361,9 @@ export default function wmuxPalette(pi: ExtensionAPI) {
       }
     }
     refresh();
+    // print and JSON mode have no UI, so there is no theme to switch there; the
+    // file is still written, so the colours are ready for the next interactive run.
+    if (!ctx.hasUI) return false;
     const applied = ctx.ui.setTheme(THEME_NAME);
     if (!applied.success) {
       ctx.ui.notify?.(`wmux palette: pi could not load its "${THEME_NAME}" theme: ${applied.error ?? "unknown reason"}`, "warning");
