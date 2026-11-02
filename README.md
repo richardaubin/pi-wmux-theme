@@ -21,8 +21,9 @@ override in its own prefs) and only ever writes it to xterm — it never tells p
 
 This package closes that gap without patching wmux: it generates pi's own theme
 from wmux's palette and writes it to `<agent-dir>/themes/wmux.json`, the one path
-pi hot-reloads. It re-reads wmux's prefs every 2 s, so a theme change in wmux lands
-in pi within a couple of seconds.
+pi hot-reloads. It watches the directory wmux saves its prefs in, so a theme change
+in wmux recolours pi in about 150 ms — and while nothing changes it does nothing at
+all.
 
 ## Install
 
@@ -54,7 +55,7 @@ The two version numbers are the ones this package is built and tested against
 `.theme` files — if wmux moves either, the extension writes nothing and pi keeps the
 colours it already has rather than guessing.
 
-Outside wmux the extension writes nothing and polls nothing: it only puts back the
+Outside wmux the extension writes nothing and watches nothing: it only puts back the
 theme setting a previous wmux session left behind, so Windows Terminal keeps its
 own colours.
 
