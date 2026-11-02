@@ -26,9 +26,9 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 
 ### Fixed
 
-- The dev-checkout fallback for wmux's `resources/themes` now points at
-  `L:\repos\wmux\resources\themes` — the old `L:\repos\wmux\wmux\…` path never
-  existed, so a theme name found only in a wmux checkout resolved to nothing.
+- The fallback for wmux's `resources/themes` when wmux runs from a source checkout now
+  points at a directory that exists — the path it looked at never did, so a theme name
+  found only in a checkout resolved to nothing.
 - `themes/wmux.json` is now replaced atomically — written to a temp file beside it,
   then renamed over it, the way wmux saves its own preferences — and the temp file is
   deleted if the write or the rename fails. Several panes rewrite that one file in

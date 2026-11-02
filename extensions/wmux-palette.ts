@@ -15,7 +15,7 @@
  *
  * This closes the gap without patching wmux: generate pi's own theme from wmux's
  * palette and drop it at <agent-dir>/themes/wmux.json, the one path pi hot-reloads
- * (docs/themes.md, "Create a custom theme"). wmux's own prefs WRITE is watched, so a
+ * (pi's "create a custom theme" docs). wmux's own prefs WRITE is watched, so a
  * theme change lands in pi in about 150 ms and nothing at all happens while nothing
  * changes.
  *
@@ -23,7 +23,7 @@
  * terminal, and a theme selection lives in pi's settings, which are global — so
  * outside wmux this file does not write, nothing is watched, and it does the one thing
  * that is still its business: undo a wmux pick left over from an earlier wmux session.
- * That is the same gate wmux's own pi extension uses (wmux resources/pi-extension/wmux.js).
+ * That is the same gate wmux's own pi extension uses: WMUX=1 plus a surface id.
  *
  * Roll back: set "theme" back in <agent-dir>/settings.json and delete
  * <agent-dir>/themes/wmux.json.
@@ -49,13 +49,12 @@ const THEME_OUT = path.join(AGENT_DIR, "themes", `${THEME_NAME}.json`);
 // started outside wmux can be put back to it. shortcut: a hand-written value is
 // assumed to be a plain theme name; an auto "a/b" setting falls back to "system".
 const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-palette-original-theme.txt");
-// wmux's own persisted prefs block (src/renderer/store/settings-slice.ts,
-// STORAGE_KEYS.terminalPrefs = "wmux-terminal-prefs").
+// wmux's own persisted prefs block: the "wmux-terminal-prefs" key of that file.
 const WMUX_SETTINGS = path.join(process.env.APPDATA ?? "", "wmux", "settings.json");
 // Watched as a DIRECTORY, not as a file: wmux saves by writing settings.json.tmp in the
-// same directory and renaming it over the target (wmux src/main/settings-store.ts:36-38),
-// and a watcher bound to a path is lost when the file behind it is replaced (pi hit the
-// same thing and says so at src/core/footer-data-provider.ts:315). A directory watch also
+// same directory and renaming it over the target, and a watcher bound to a path is lost when
+// the file behind it is replaced (pi runs into the same thing with git's HEAD, and watches a
+// directory for the same reason). A directory watch also
 // covers a wmux that has not written its prefs yet, since it reports creation too.
 const WMUX_SETTINGS_DIR = path.dirname(WMUX_SETTINGS);
 const WMUX_SETTINGS_NAME = path.basename(WMUX_SETTINGS);
@@ -77,14 +76,19 @@ const WATCH_REARM_MS = 5000; // the delay pi uses for its own failed fs.watch ha
 const IN_WMUX = process.env.WMUX === "1" && !!process.env.WMUX_SURFACE_ID;
 
 /**
- * Where wmux keeps its .theme files: resources/themes next to the CLI it injected
- * into the shell (WMUX_CLI), else the installed app, else a dev checkout.
+ * Where wmux keeps its .theme files: `resources/themes` inside the app that owns this
+ * shell, reached from WMUX_CLI. Packaged, wmux points it at `<install>/resources/cli/wmux.js`,
+ * so its themes are one directory up; run from a source checkout it sits in the built
+ * `dist/cli/`, so its themes are two up and into `resources/`. PROGRAMFILES covers an
+ * installed wmux whose CLI variable is missing from the shell.
  */
 function wmuxThemesDirs(): string[] {
   const dirs: string[] = [];
-  if (process.env.WMUX_CLI) dirs.push(path.join(path.dirname(process.env.WMUX_CLI), "..", "themes"));
+  if (process.env.WMUX_CLI) {
+    const cli = path.dirname(process.env.WMUX_CLI);
+    dirs.push(path.join(cli, "..", "themes"), path.join(cli, "..", "..", "resources", "themes"));
+  }
   if (process.env.PROGRAMFILES) dirs.push(path.join(process.env.PROGRAMFILES, "wmux", "resources", "themes"));
-  dirs.push("C:\\Program Files\\wmux\\resources\\themes", "L:\\repos\\wmux\\resources\\themes");
   return dirs.filter((d) => {
     try {
       return fs.statSync(d).isDirectory();
@@ -147,9 +151,7 @@ export interface WmuxPalette extends WmuxThemeFile {
 /**
  * wmux's own resolution order, mirrored: terminalPrefs.theme names a bundled
  * theme (case-insensitive) and a same-named userColorSchemes entry is merged over
- * it field by field, non-empty palette slots replacing their index. See wmux
- * src/main/theme-loader.ts getThemeByName and
- * src/renderer/hooks/useTerminal.ts buildXtermTheme.
+ * it field by field, non-empty palette slots replacing their index.
  * shortcut: an unreadable wmux prefs file or an unresolvable theme name yields
  * null and pi keeps its current theme; wmux's own Monokai fallback is not
  * reproduced. If wmux ever moves its prefs, this returns null rather than wrong
@@ -297,8 +299,7 @@ export function buildWmuxTheme(): { theme: Record<string, unknown>; source: stri
  * theme pi silently fails to parse, or a truncated rollback marker a later session restores
  * as a garbage theme name. renameSync maps onto MoveFileExW/MOVEFILE_REPLACE_EXISTING, so the
  * path is never absent and never half-full. The same shape wmux uses for its own prefs
- * (src/main/settings-store.ts:36-38) and for its temp files named with a pid
- * (src/main/git-worktree.ts:291, src/main/workspace-trust.ts:58).
+ * and for its other temp files named with a pid.
  */
 function replaceFileAtomically(target: string, content: string): void {
   // pid in the name: the panes each write the same target, and two of them sharing one
@@ -400,7 +401,7 @@ export default function wmuxPalette(pi: ExtensionAPI) {
   // caches them for the lifetime of its renderer, so pi would change colour ahead of what
   // wmux has actually applied.
   // Started from session_start, not the factory: pi loads extensions for invocations
-  // that never start a session (docs/extensions.md, "Understand the runtime lifecycle").
+  // that never start a session (pi's extension docs, "Understand the runtime lifecycle").
   let watcher: fs.FSWatcher | undefined;
   let debounce: ReturnType<typeof setTimeout> | undefined;
   let rearm: ReturnType<typeof setTimeout> | undefined;

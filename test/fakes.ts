@@ -64,8 +64,8 @@ palette = 9=#ff8080
 
 /**
  * A file saved the way wmux saves them: write a fixed `.tmp` sibling in the SAME
- * directory, then rename it over the target, which is what wmux's
- * src/main/settings-store.ts:36-38 does for its prefs. Watching a *file* would miss
+ * directory, then rename it over the target, which is how wmux replaces its own prefs.
+ * Watching a *file* would miss
  * that replace, so the fixture has to reproduce it.
  */
 export function wmuxSave(file: string, content: string) {
@@ -85,23 +85,27 @@ export function writeWmuxPrefs(prefsFile: string, theme: string) {
  * for wmux's bundled themes dir, then the environment that points at them.
  * Everything is under one temp root, which cleanup() removes.
  */
-export function fakeWmux({ inWmux, theme = "seam-dark" }: { inWmux: boolean; theme?: string }) {
+export function fakeWmux({ inWmux, theme = "seam-dark", cliLayout = "bin" }: { inWmux: boolean; theme?: string; cliLayout?: "bin" | "checkout" }) {
   const root = mkdtempSync(path.join(tmpdir(), "wmux-palette-seam-"));
   const agentDir = path.join(root, "agent");
   const appData = path.join(root, "appdata");
   const wmuxDir = path.join(root, "wmux");
   const prefsFile = path.join(appData, "wmux", "settings.json");
-  mkdirSync(path.join(wmuxDir, "themes"), { recursive: true });
+  // An installed wmux keeps its themes one level above the CLI WMUX_CLI names; a source
+  // checkout keeps them in resources/ while WMUX_CLI sits in the built dist/.
+  const themeFilesDir = cliLayout === "checkout" ? path.join(wmuxDir, "resources", "themes") : path.join(wmuxDir, "themes");
+  const cliDir = cliLayout === "checkout" ? path.join(wmuxDir, "dist", "cli") : path.join(wmuxDir, "bin");
+  mkdirSync(themeFilesDir, { recursive: true });
   mkdirSync(path.join(appData, "wmux"), { recursive: true });
   mkdirSync(agentDir, { recursive: true });
-  writeFileSync(path.join(wmuxDir, "themes", "seam-dark.theme"), DARK_THEME, "utf-8");
-  writeFileSync(path.join(wmuxDir, "themes", "seam-light.theme"), LIGHT_THEME, "utf-8");
+  writeFileSync(path.join(themeFilesDir, "seam-dark.theme"), DARK_THEME, "utf-8");
+  writeFileSync(path.join(themeFilesDir, "seam-light.theme"), LIGHT_THEME, "utf-8");
   writeWmuxPrefs(prefsFile, theme);
 
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.env.APPDATA = appData;
-  // wmux injects WMUX_CLI into the shell; the themes live one level above its bin.
-  process.env.WMUX_CLI = path.join(wmuxDir, "bin", "wmux.exe");
+  // wmux injects WMUX_CLI into the shell; the themes sit next to what it points at.
+  process.env.WMUX_CLI = path.join(cliDir, "wmux.exe");
   if (inWmux) {
     process.env.WMUX = "1";
     process.env.WMUX_SURFACE_ID = "7";
@@ -115,7 +119,7 @@ export function fakeWmux({ inWmux, theme = "seam-dark" }: { inWmux: boolean; the
     agentDir,
     prefsFile,
     prefsDir: path.join(appData, "wmux"), // what gets watched: settings.json and the files that churn around it
-    themeFilesDir: path.join(wmuxDir, "themes"), // what must NOT be watched (wmux caches them per renderer)
+    themeFilesDir, // what must NOT be watched (wmux caches them per renderer)
     themeOut: path.join(agentDir, "themes", "wmux.json"),
     originalThemeFile: path.join(agentDir, "wmux-palette-original-theme.txt"),
     cleanup: () => rmSync(root, { recursive: true, force: true }),

@@ -58,10 +58,9 @@ const setWmuxThemeFile = (text: string) => writeFileSync(path.join(fx.themeFiles
 
 /**
  * The decoys the name filter has to ignore, written in wmux's own atomic shape (temp sibling
- * + rename). wmux writes plenty into that one directory besides its prefs: its pty ledger
- * (wmux src/main/ipc-handlers.ts:95), its version stamp (src/main/session-persistence.ts:19),
- * its log directory (src/main/crash-diagnostics.ts:42), its Chromium profile
- * (src/main/chromium-profile.ts:40) and its pipe token (src/shared/instance.ts:68); its
+ * + rename). wmux keeps plenty besides its prefs in that one directory: its pty ledger, its
+ * version stamp (app-version.txt), its log directory, its Chromium profile and its pipe
+ * token; plus
  * session state and rotating backups (session.json, session.json.bak[.1-3]) and
  * metadata.json(.bak) are files sitting in the real %APPDATA%\wmux. NONE of them was seen
  * generating an event while watching: the only churn the live watch log recorded is
