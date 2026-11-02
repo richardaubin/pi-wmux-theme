@@ -77,6 +77,24 @@ npm test        # node --test (Node 23.6+ to strip the types)
 `pi --extension ./extensions/wmux-palette.ts` loads it in one invocation while you
 edit it.
 
+## Versioning & releases
+
+Versioned in [`CHANGELOG.md`](CHANGELOG.md): keep-a-changelog sections under
+`[Unreleased]`, then bump `version` in `package.json`, add a `## [X.Y.Z] - date`
+heading, and tag the commit:
+
+```bash
+git tag vX.Y.Z && git push && git push --tags
+```
+
+Your install here is unpinned, so it tracks the default branch:
+
+```bash
+pi update git:github.com/richardaubin/pi-wmux-palette   # newest commit
+pi update                                               # all packages
+pi install git:github.com/richardaubin/pi-wmux-palette@v1.0.0   # pin instead
+```
+
 ## Credits
 
 - **[wmux](https://github.com/amirlehmam/wmux)** — [Amir Lehmam](https://github.com/amirlehmam), MIT. The Windows terminal multiplexer for AI agents; its palette is what this extension reads. Without wmux this extension has no reason to exist.
