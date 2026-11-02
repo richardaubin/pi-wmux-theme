@@ -45,8 +45,14 @@ itself — no `/settings` step.
 |---|---|
 | OS | Windows (wmux is Windows-only) |
 | Terminal | running inside wmux, with `WMUX=1` and `WMUX_SURFACE_ID` set by wmux |
-| wmux | an install or checkout with `resources/themes/*.theme`, plus readable `%APPDATA%\wmux\settings.json` |
-| pi | 1.x (`pi-coding-agent`) |
+| wmux | **2.54.0** or newer, with `resources/themes/*.theme` present and `%APPDATA%\wmux\settings.json` readable |
+| pi | **1.4.0** or newer (`@earendil-works/pi-coding-agent`) |
+
+The two version numbers are the ones this package is built and tested against
+(wmux `v2.54.0`, pi `v1.4.0`). What it actually reads from wmux is the
+`wmux-terminal-prefs` block in wmux's `settings.json` and the ghostty-format
+`.theme` files — if wmux moves either, the extension writes nothing and pi keeps the
+colours it already has rather than guessing.
 
 Outside wmux the extension writes nothing and polls nothing: it only puts back the
 theme setting a previous wmux session left behind, so Windows Terminal keeps its
