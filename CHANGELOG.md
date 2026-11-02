@@ -10,7 +10,7 @@ moves it to the newest commit; a pinned install (`…@v1.0.0`) stays where you p
 
 To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git push && git push --tags`.
 
-## [Unreleased]
+## [1.1.0] - 2026-11-02
 
 ### Changed
 
