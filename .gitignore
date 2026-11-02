@@ -1,3 +1,16 @@
 node_modules/
 dist/
 *.tgz
+
+# installed Matt Pocock skills (local only, synced from mattpocock/skills)
+.agents/
+skills-lock.json
+
+# agent instructions — local only, not part of the package
+AGENTS.md
+docs/agents/
+
+# /domain-modeling output — local only
+GLOSSARY.md
+GLOSSARY-MAP.md
+docs/adr/

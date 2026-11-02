@@ -12,13 +12,6 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 
 ## [Unreleased]
 
-### Added
-
-- `AGENTS.md`: the instructions any agent working in this repo gets automatically
-  (pi, Codex and friends load it as a context file) — what the package is, the pi API
-  rules an edit must obey, how to verify, the release ritual, and the dead end not to
-  re-investigate.
-
 ## [1.0.0] - 2026-11-02
 
 First packaged release. Previously this was an unversioned single file,
