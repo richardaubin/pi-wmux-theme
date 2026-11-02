@@ -10,6 +10,16 @@ moves it to the newest commit; a pinned install (`…@v1.0.0`) stays where you p
 
 To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git push && git push --tags`.
 
+## [1.1.1] - 2026-11-02
+
+### Fixed
+
+- wmux **run from a source checkout** finds its `resources/themes` again. That directory is now
+  derived from `WMUX_CLI` — `resources/cli/wmux.js` when wmux is installed (themes one level
+  up), the built `dist/cli/wmux.js` when it runs from a checkout (themes two levels up, in
+  `resources/`) — instead of falling back to two hardcoded paths, one of which matched only
+  one machine's checkout.
+
 ## [1.1.0] - 2026-11-02
 
 ### Changed
