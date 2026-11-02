@@ -65,7 +65,7 @@ palette = 9=#ff8080
 /**
  * A file saved the way wmux saves them: write a fixed `.tmp` sibling in the SAME
  * directory, then rename it over the target, which is what wmux's
- * src/main/settings-store.ts:35-37 does for its prefs. Watching a *file* would miss
+ * src/main/settings-store.ts:36-38 does for its prefs. Watching a *file* would miss
  * that replace, so the fixture has to reproduce it.
  */
 export function wmuxSave(file: string, content: string) {
@@ -139,7 +139,6 @@ export function fakePi(theme?: string) {
 
   const ctx = {
     hasUI: true,
-    mode: "tui",
     ui: {
       setTheme: (name: string) => {
         themes.push(name);

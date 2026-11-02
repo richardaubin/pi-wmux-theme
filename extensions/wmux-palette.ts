@@ -53,19 +53,23 @@ const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-palette-original-theme.tx
 // STORAGE_KEYS.terminalPrefs = "wmux-terminal-prefs").
 const WMUX_SETTINGS = path.join(process.env.APPDATA ?? "", "wmux", "settings.json");
 // Watched as a DIRECTORY, not as a file: wmux saves by writing settings.json.tmp in the
-// same directory and renaming it over the target (wmux src/main/settings-store.ts:35-37),
+// same directory and renaming it over the target (wmux src/main/settings-store.ts:36-38),
 // and a watcher bound to a path is lost when the file behind it is replaced (pi hit the
 // same thing and says so at src/core/footer-data-provider.ts:315). A directory watch also
 // covers a wmux that has not written its prefs yet, since it reports creation too.
 const WMUX_SETTINGS_DIR = path.dirname(WMUX_SETTINGS);
 const WMUX_SETTINGS_NAME = path.basename(WMUX_SETTINGS);
 // Measured against a live wmux 2.54.0 on 2026-11-02 (fs.watch, non-recursive, on
-// %APPDATA%\wmux): idle gives 0 events in 1 s, and ONE prefs save gives 5 events inside
-// the same millisecond — 2 rename events naming settings.json, 3 naming settings.json.tmp.
-// The rest of that directory churns by itself: the sessions\ entry moves roughly every
-// 30 s while terminals run, and session.json(.bak*), pty-ledger.json, logs\, app-version.txt
-// and the Chromium profile are all in there. So the name filter is what stops pi rebuilding
-// every half minute, and one short timer is what makes one save one rebuild.
+// %APPDATA%\wmux; four real prefs saves, the two of .agent-notes/live-burst.log and the two
+// of live-check.out): idle gives 0 events in 1 s, and ONE save gives 4–6 events inside 1 ms
+// — always exactly 2 rename events naming settings.json, the other 2–4 naming
+// settings.json.tmp. The only other churn seen in those windows is the sessions\ entry
+// changing twice roughly every 30 s while terminals run; the session.json(.bak*),
+// pty-ledger.json, logs\, app-version.txt and Chromium profile sitting in that directory
+// generated no event at all. So the name filter is what stops pi rebuilding every half
+// minute, and one short timer is what makes one save one rebuild: the write landed 162 ms
+// and 166 ms after the first matching event, against up to 2 s for the poll this replaces
+// (the same shape driven by the automated test: 161–189 ms).
 const REBUILD_DEBOUNCE_MS = 150; // pi debounces its own reload of the file this writes at 100 ms
 const WATCH_REARM_MS = 5000; // the delay pi uses for its own failed fs.watch handles
 
@@ -287,17 +291,46 @@ export function buildWmuxTheme(): { theme: Record<string, unknown>; source: stri
 }
 
 /**
+ * Replace `target` with `content`: a temp file in the SAME directory, renamed over it, and
+ * no temp left behind if either step fails. Never an in-place rewrite, because several panes
+ * write both of the files this does it for, and one that dies mid-write leaves a truncated
+ * theme pi silently fails to parse, or a truncated rollback marker a later session restores
+ * as a garbage theme name. renameSync maps onto MoveFileExW/MOVEFILE_REPLACE_EXISTING, so the
+ * path is never absent and never half-full. The same shape wmux uses for its own prefs
+ * (src/main/settings-store.ts:36-38) and for its temp files named with a pid
+ * (src/main/git-worktree.ts:291, src/main/workspace-trust.ts:58).
+ */
+function replaceFileAtomically(target: string, content: string): void {
+  // pid in the name: the panes each write the same target, and two of them sharing one
+  // temp path would mean one rename stealing the other's file.
+  const tmp = `${target}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  try {
+    fs.writeFileSync(tmp, content, "utf-8");
+    fs.renameSync(tmp, target);
+  } catch (error) {
+    try {
+      fs.rmSync(tmp, { force: true }); // a leftover temp would sit in the dir pi watches
+    } catch {
+      /* the temp is already gone, or locked by whatever failed the write */
+    }
+    throw error;
+  }
+}
+
+/**
  * Write it if it changed. Returns a one-line description, or null if nothing was derivable.
  *
- * Temp file + rename, the way wmux saves its own prefs (wmux src/main/claude-context.ts
- * writeJsonAtomic): several panes rewrite this one file, and an interrupted in-place
- * rewrite leaves a truncated file pi fails to parse — pi swallows that error and does
- * not retry, so every pane keeps stale colours and nobody is told. renameSync maps onto
- * MoveFileExW/MOVEFILE_REPLACE_EXISTING, so the path is never absent and never half-full.
- * The write-if-changed guard stays: the duplicate writes from the other panes are no-ops.
- * shortcut: on Windows the rename fails with EPERM if another process is holding the
- * target open at that moment (measured) — pi reads this file open-read-close and never
- * holds it, and the next change retries, so no fallback is worth its cost yet.
+ * Temp file + rename (see replaceFileAtomically) because several panes rewrite this one
+ * file, and an interrupted in-place rewrite leaves a truncated file pi fails to parse — pi
+ * swallows that error and does not retry, so every pane keeps stale colours and nobody is
+ * told. The write-if-changed guard stays: the duplicate writes from the other panes are
+ * no-ops.
+ * shortcut: a failed replace is not retried on a timer — pi keeps the previous file and the
+ * next change writes again. A rename fails to land only when the SAME process holds the
+ * target open (EPERM, measured on this machine); this extension never opens what it writes,
+ * and a reader in ANOTHER process does not block it, libuv having opened that handle with
+ * FILE_SHARE_DELETE (also measured).
  */
 export function writeWmuxTheme(): string | null {
   const built = buildWmuxTheme();
@@ -309,23 +342,7 @@ export function writeWmuxTheme(): string | null {
   } catch {
     /* first run */
   }
-  if (previous !== json) {
-    // pid in the name: the panes each write the same target, and two of them sharing one
-    // temp path would mean one rename stealing the other's file.
-    const tmp = `${THEME_OUT}.${process.pid}.tmp`;
-    fs.mkdirSync(path.dirname(THEME_OUT), { recursive: true });
-    try {
-      fs.writeFileSync(tmp, json, "utf-8");
-      fs.renameSync(tmp, THEME_OUT);
-    } catch (error) {
-      try {
-        fs.rmSync(tmp, { force: true }); // a leftover temp would sit in the dir pi watches
-      } catch {
-        /* the temp is already gone, or locked by whatever failed the write */
-      }
-      throw error;
-    }
-  }
+  if (previous !== json) replaceFileAtomically(THEME_OUT, json);
   return `${built.theme.appearance} from ${built.source}`;
 }
 
@@ -419,10 +436,15 @@ export default function wmuxPalette(pi: ExtensionAPI) {
       rearm.unref();
       return;
     }
-    // how a dropped watch shows up (sleep/resume, transient I/O): close it, watch again
-    // after the delay pi uses for the same failure.
+    // how a dropped watch shows up (sleep/resume, transient I/O): close this handle, watch
+    // again after the delay pi uses for the same failure. Deliberately NOT stopWatching():
+    // that would also discard the rebuild a save has already queued.
     next.on("error", () => {
-      stopWatching();
+      try {
+        next.close();
+      } catch {
+        /* already closed */
+      }
       rearm = setTimeout(startWatching, WATCH_REARM_MS);
       rearm.unref();
     });
@@ -436,7 +458,7 @@ export default function wmuxPalette(pi: ExtensionAPI) {
     const current = pi.getSettings().theme;
     if (current && current !== THEME_NAME) {
       try {
-        fs.writeFileSync(ORIGINAL_THEME_FILE, current, "utf-8");
+        replaceFileAtomically(ORIGINAL_THEME_FILE, current);
       } catch {
         /* losing it only costs the undo outside wmux */
       }

@@ -56,7 +56,17 @@ async function themeWhenAppearance(appearance: string): Promise<ThemeFile | null
  */
 const setWmuxThemeFile = (text: string) => writeFileSync(path.join(fx.themeFilesDir, "seam-dark.theme"), text, "utf-8");
 
-/** everything wmux writes in its prefs directory besides its prefs file, live on 2026-11-02 */
+/**
+ * The decoys the name filter has to ignore, written in wmux's own atomic shape (temp sibling
+ * + rename). wmux writes plenty into that one directory besides its prefs: its pty ledger
+ * (wmux src/main/ipc-handlers.ts:95), its version stamp (src/main/session-persistence.ts:19),
+ * its log directory (src/main/crash-diagnostics.ts:42), its Chromium profile
+ * (src/main/chromium-profile.ts:40) and its pipe token (src/shared/instance.ts:68); its
+ * session state and rotating backups (session.json, session.json.bak[.1-3]) and
+ * metadata.json(.bak) are files sitting in the real %APPDATA%\wmux. NONE of them was seen
+ * generating an event while watching: the only churn the live watch log recorded is
+ * `change sessions` twice roughly every 30 s, which is why `sessions` is on this list.
+ */
 const WMUX_CHURN = ["session.json", "session.json.bak.3", "pty-ledger.json", "app-version.txt", "metadata.json", "pipe-token", "settings.json.tmp"];
 const WMUX_CHURN_DIRS = ["sessions", "logs", "chromium"];
 

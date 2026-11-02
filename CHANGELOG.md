@@ -17,12 +17,12 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 - wmux's preferences are **watched** instead of re-read every 2 s. One watch on the
   directory holding `%APPDATA%\wmux\settings.json`, rebuilt only for the events naming
   that file (wmux saves by renaming a `settings.json.tmp` over it, which is why a
-  directory is watched and not the file), with a 150 ms trailing timer collapsing the
-  five events one save produces. Changing the theme in wmux's **Settings → Terminal**
+  directory is watched and not the file), with a 150 ms trailing timer collapsing the 4–6
+  events one save produces. Changing the theme in wmux's **Settings → Terminal**
   now recolours pi in about 150 ms instead of up to 2 s, there are no idle reads, and a
-  session has no timer. A watch that errors is closed and re-armed after 5 s; there is
-  deliberately no backstop interval, so a change made while pi was not watching lands at
-  the next session start.
+  session has no timer. A watch that errors is closed and re-armed after 5 s, and a rebuild a
+  save had already queued before it died still runs; there is deliberately no backstop
+  interval, so a change made while pi was not watching lands at the next session start.
 
 ### Fixed
 
@@ -33,7 +33,10 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
   then renamed over it, the way wmux saves its own preferences — and the temp file is
   deleted if the write or the rename fails. Several panes rewrite that one file in
   place, and one that died mid-write left a truncated file pi silently failed to parse:
-  every pane kept stale colours and nothing retried until the next change.
+  every pane kept stale colours and nothing retried until the next change. The rollback
+  marker `wmux-palette-original-theme.txt`, which every pane rewrites too, is replaced the
+  same way — a truncated one made a later session outside wmux restore garbage as its theme
+  name.
 
 ## [1.0.0] - 2026-11-02
 

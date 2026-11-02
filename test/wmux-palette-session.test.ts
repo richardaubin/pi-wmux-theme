@@ -50,6 +50,13 @@ test("it selects that theme in pi by the name it wrote, and says which wmux them
   assert.equal(path.basename(fx.themeOut), `${name}.json`); // …which is the file pi hot-reloads
   assert.ok(pi.notices.some((n) => n.includes("seam-dark")), `no notice names the wmux theme: ${pi.notices}`);
   assert.equal(readFileSync(fx.originalThemeFile, "utf-8"), "dark"); // the pick it replaced, kept for the undo outside wmux
+
+  // Every pane rewrites that marker too, so it gets the same replace rather than an in-place
+  // rewrite: a truncated one would make a later session outside wmux restore garbage as a
+  // theme name. The same NTFS file-index fingerprint as the theme file below.
+  const marker = statSync(fx.originalThemeFile);
+  await pi.runCommand(); // selects again, so the marker is written a second time
+  assert.notEqual(statSync(fx.originalThemeFile).ino, marker.ino); // replaced, not rewritten in place
 });
 
 /**
@@ -108,8 +115,6 @@ test("a wmux theme whose background is light gets pi's light base", async () => 
   wmuxPalette(pi.api);
   await pi.startSession();
 
-  // wmux saving its prefs is what the watcher ticket will trigger on; here the
-  // extension's own /wmux-palette handler is the re-read, so no clock is involved.
   writeWmuxPrefs(fx.prefsFile, "seam-light");
   await pi.runCommand();
 

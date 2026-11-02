@@ -7,8 +7,9 @@
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { after, test } from "node:test";
-import { fakePi, fakeWmux } from "./fakes.ts";
+import { fakePi, fakeWmux, writeWmuxPrefs } from "./fakes.ts";
 
 const fx = fakeWmux({ inWmux: false }); // WMUX and WMUX_SURFACE_ID deliberately unset
 after(fx.cleanup);
@@ -34,4 +35,19 @@ test("…and puts back the theme the earlier wmux session picked", async () => {
 
   assert.deepEqual(pi.themes, ["gruvbox"]); // the name kept in wmux-palette-original-theme.txt
   assert.ok(pi.notices.some((n) => n.includes("not inside wmux")), `no notice explains it: ${pi.notices}`);
+});
+
+/**
+ * The other half of the outside-wmux promise: it is not just that no theme was written at
+ * session_start, nothing is WATCHED either, so a wmux that saves its prefs later (a wmux
+ * window left open on this machine) must still not make this session write pi's theme.
+ */
+test("…and arms no watch, so a wmux prefs save afterwards still writes no theme file", async () => {
+  const pi = fakePi("wmux");
+  wmuxPalette(pi.api);
+  await pi.startSession();
+
+  writeWmuxPrefs(fx.prefsFile, "seam-dark"); // a real wmux save: temp sibling, then rename over settings.json
+  await delay(500); // several times the extension's 150 ms rebuild debounce
+  assert.equal(existsSync(fx.themeOut), false, "a session outside wmux armed a watch: a wmux prefs save rebuilt pi's theme");
 });
