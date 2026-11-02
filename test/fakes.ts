@@ -13,10 +13,10 @@
  * This file must NOT import the extension: importing it here would freeze the
  * environment of whichever test file happened to import fakes first.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { ExtensionAPI, ExtensionCommandContext, SessionStartEvent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, SessionShutdownEvent, SessionStartEvent } from "@earendil-works/pi-coding-agent";
 
 /**
  * pi's built-in base tokens come from whichever pi is installed (piThemeDir()
@@ -62,10 +62,22 @@ palette = 8=#808080
 palette = 9=#ff8080
 `;
 
+/**
+ * A file saved the way wmux saves them: write a fixed `.tmp` sibling in the SAME
+ * directory, then rename it over the target, which is what wmux's
+ * src/main/settings-store.ts:35-37 does for its prefs. Watching a *file* would miss
+ * that replace, so the fixture has to reproduce it.
+ */
+export function wmuxSave(file: string, content: string) {
+  const tmp = `${file}.tmp`;
+  writeFileSync(tmp, content, "utf-8");
+  renameSync(tmp, file);
+}
+
 /** wmux's own prefs path and key: %APPDATA%\wmux\settings.json, "wmux-terminal-prefs". */
 export function writeWmuxPrefs(prefsFile: string, theme: string) {
   const userColorSchemes = { "seam-dark": { palette: ["", "#ee0000"] } }; // wmux's per-theme override: slot 1 replaces the file's, the empty slot 0 does not
-  writeFileSync(prefsFile, JSON.stringify({ "wmux-terminal-prefs": { theme, userColorSchemes } }), "utf-8");
+  wmuxSave(prefsFile, JSON.stringify({ "wmux-terminal-prefs": { theme, userColorSchemes } }));
 }
 
 /**
@@ -102,6 +114,8 @@ export function fakeWmux({ inWmux, theme = "seam-dark" }: { inWmux: boolean; the
     root,
     agentDir,
     prefsFile,
+    prefsDir: path.join(appData, "wmux"), // what gets watched: settings.json and the files that churn around it
+    themeFilesDir: path.join(wmuxDir, "themes"), // what must NOT be watched (wmux caches them per renderer)
     themeOut: path.join(agentDir, "themes", "wmux.json"),
     originalThemeFile: path.join(agentDir, "wmux-palette-original-theme.txt"),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
@@ -109,6 +123,7 @@ export function fakeWmux({ inWmux, theme = "seam-dark" }: { inWmux: boolean; the
 }
 
 export const SESSION_START: SessionStartEvent = { type: "session_start", reason: "startup" };
+export const SESSION_SHUTDOWN: SessionShutdownEvent = { type: "session_shutdown", reason: "quit" };
 
 /**
  * The smallest pi the extension will accept: it only ever calls `on`,
@@ -156,6 +171,9 @@ export function fakePi(theme?: string) {
     /** the handlers the extension registers are async; await them like pi does */
     async startSession() {
       await handlers.get("session_start")?.(SESSION_START, ctx);
+    },
+    async endSession() {
+      await handlers.get("session_shutdown")?.(SESSION_SHUTDOWN, ctx);
     },
     async runCommand(args = "") {
       await commands.get("wmux-palette")?.(args, ctx);

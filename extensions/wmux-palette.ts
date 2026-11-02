@@ -15,13 +15,14 @@
  *
  * This closes the gap without patching wmux: generate pi's own theme from wmux's
  * palette and drop it at <agent-dir>/themes/wmux.json, the one path pi hot-reloads
- * (docs/themes.md, "Create a custom theme"). Refresh while wmux's prefs or theme
- * file change, so a theme change lands in pi within a couple of seconds.
+ * (docs/themes.md, "Create a custom theme"). wmux's own prefs WRITE is watched, so a
+ * theme change lands in pi in about 150 ms and nothing at all happens while nothing
+ * changes.
  *
  * Only inside wmux. wmux's palette says nothing about Windows Terminal or any other
  * terminal, and a theme selection lives in pi's settings, which are global — so
- * outside wmux this file does not write, does not poll, and does the one thing that
- * is still its business: undo a wmux pick left over from an earlier wmux session.
+ * outside wmux this file does not write, nothing is watched, and it does the one thing
+ * that is still its business: undo a wmux pick left over from an earlier wmux session.
  * That is the same gate wmux's own pi extension uses (wmux resources/pi-extension/wmux.js).
  *
  * Roll back: set "theme" back in <agent-dir>/settings.json and delete
@@ -51,7 +52,22 @@ const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-palette-original-theme.tx
 // wmux's own persisted prefs block (src/renderer/store/settings-slice.ts,
 // STORAGE_KEYS.terminalPrefs = "wmux-terminal-prefs").
 const WMUX_SETTINGS = path.join(process.env.APPDATA ?? "", "wmux", "settings.json");
-const POLL_MS = 2000;
+// Watched as a DIRECTORY, not as a file: wmux saves by writing settings.json.tmp in the
+// same directory and renaming it over the target (wmux src/main/settings-store.ts:35-37),
+// and a watcher bound to a path is lost when the file behind it is replaced (pi hit the
+// same thing and says so at src/core/footer-data-provider.ts:315). A directory watch also
+// covers a wmux that has not written its prefs yet, since it reports creation too.
+const WMUX_SETTINGS_DIR = path.dirname(WMUX_SETTINGS);
+const WMUX_SETTINGS_NAME = path.basename(WMUX_SETTINGS);
+// Measured against a live wmux 2.54.0 on 2026-11-02 (fs.watch, non-recursive, on
+// %APPDATA%\wmux): idle gives 0 events in 1 s, and ONE prefs save gives 5 events inside
+// the same millisecond — 2 rename events naming settings.json, 3 naming settings.json.tmp.
+// The rest of that directory churns by itself: the sessions\ entry moves roughly every
+// 30 s while terminals run, and session.json(.bak*), pty-ledger.json, logs\, app-version.txt
+// and the Chromium profile are all in there. So the name filter is what stops pi rebuilding
+// every half minute, and one short timer is what makes one save one rebuild.
+const REBUILD_DEBOUNCE_MS = 150; // pi debounces its own reload of the file this writes at 100 ms
+const WATCH_REARM_MS = 5000; // the delay pi uses for its own failed fs.watch handles
 
 // wmux sets these in every shell it spawns; pi loads packages everywhere.
 const IN_WMUX = process.env.WMUX === "1" && !!process.env.WMUX_SURFACE_ID;
@@ -332,22 +348,62 @@ export default function wmuxPalette(pi: ExtensionAPI) {
     return changed ? result : null;
   };
 
-  // A poll, not a watcher: wmux writes its prefs debounced and atomically, and
-  // re-deriving the palette costs two small file reads. Watching the prefs file
-  // would mean re-attaching a watcher every time the theme NAME changes. Only the
-  // file is rewritten here — pi watches <agent-dir>/themes and reloads the active
-  // theme from it, so the new colours land by themselves.
+  // The trigger is wmux's own save, not a schedule: nothing is read and no timer fires
+  // while nothing has changed, and a save made in another wmux window or pane reaches
+  // this session too. Only the theme file is rewritten here — pi watches
+  // <agent-dir>/themes and reloads the active theme from it, so the colours land on their
+  // own. Deliberately NO backstop interval: a watch that dies without an error event goes
+  // unnoticed until the next session_start, which re-reads anyway (the residual risk the
+  // spec accepted). wmux's bundled .theme files are deliberately NOT watched either: wmux
+  // caches them for the lifetime of its renderer, so pi would change colour ahead of what
+  // wmux has actually applied.
   // Started from session_start, not the factory: pi loads extensions for invocations
   // that never start a session (docs/extensions.md, "Understand the runtime lifecycle").
-  let timer: ReturnType<typeof setInterval> | undefined;
-  const stopPolling = () => {
-    if (timer) clearInterval(timer);
-    timer = undefined;
+  let watcher: fs.FSWatcher | undefined;
+  let debounce: ReturnType<typeof setTimeout> | undefined;
+  let rearm: ReturnType<typeof setTimeout> | undefined;
+
+  const onPrefsSave: fs.WatchListener<string> = (_event, name) => {
+    // A name means the platform knows which entry moved: only the prefs file is one.
+    // No name means it could not say, so treat it as real rather than lose the change.
+    if (name && name !== WMUX_SETTINGS_NAME) return;
+    clearTimeout(debounce); // the burst lands in one millisecond: one trailing timer, one rebuild
+    debounce = setTimeout(refresh, REBUILD_DEBOUNCE_MS);
+    debounce.unref();
   };
-  const startPolling = () => {
-    stopPolling();
-    timer = setInterval(refresh, POLL_MS);
-    timer.unref?.();
+
+  const stopWatching = () => {
+    clearTimeout(debounce);
+    clearTimeout(rearm);
+    debounce = rearm = undefined;
+    try {
+      watcher?.close();
+    } catch {
+      /* already closed */
+    }
+    watcher = undefined;
+  };
+
+  const startWatching = () => {
+    stopWatching();
+    let next: fs.FSWatcher;
+    try {
+      next = fs.watch(WMUX_SETTINGS_DIR, onPrefsSave);
+    } catch {
+      rearm = setTimeout(startWatching, WATCH_REARM_MS); // the directory is missing until wmux first saves
+      rearm.unref();
+      return;
+    }
+    // how a dropped watch shows up (sleep/resume, transient I/O): close it, watch again
+    // after the delay pi uses for the same failure.
+    next.on("error", () => {
+      stopWatching();
+      rearm = setTimeout(startWatching, WATCH_REARM_MS);
+      rearm.unref();
+    });
+    // like the interval it replaces, this must not hold pi's process open
+    next.unref();
+    watcher = next;
   };
 
   /** Select the generated theme by name, which is what arms pi's reload watcher. */
@@ -372,10 +428,10 @@ export default function wmuxPalette(pi: ExtensionAPI) {
   };
 
   pi.on("session_start", async (_event, ctx) => {
-    startPolling();
     if (select(ctx)) ctx.ui.notify?.(`wmux palette: ${last} (pi theme "${THEME_NAME}")`, "info");
+    startWatching();
   });
-  pi.on("session_shutdown", () => stopPolling());
+  pi.on("session_shutdown", () => stopWatching());
 
   pi.registerCommand("wmux-palette", {
     description: "Rewrite pi's `wmux` theme from wmux's current terminal palette",

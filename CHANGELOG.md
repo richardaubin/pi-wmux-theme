@@ -12,6 +12,18 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 
 ## [Unreleased]
 
+### Changed
+
+- wmux's preferences are **watched** instead of re-read every 2 s. One watch on the
+  directory holding `%APPDATA%\wmux\settings.json`, rebuilt only for the events naming
+  that file (wmux saves by renaming a `settings.json.tmp` over it, which is why a
+  directory is watched and not the file), with a 150 ms trailing timer collapsing the
+  five events one save produces. Changing the theme in wmux's **Settings → Terminal**
+  now recolours pi in about 150 ms instead of up to 2 s, there are no idle reads, and a
+  session has no timer. A watch that errors is closed and re-armed after 5 s; there is
+  deliberately no backstop interval, so a change made while pi was not watching lands at
+  the next session start.
+
 ### Fixed
 
 - The dev-checkout fallback for wmux's `resources/themes` now points at
