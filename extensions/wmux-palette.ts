@@ -286,7 +286,19 @@ export function buildWmuxTheme(): { theme: Record<string, unknown>; source: stri
   };
 }
 
-/** Write it if it changed. Returns a one-line description, or null if nothing was derivable. */
+/**
+ * Write it if it changed. Returns a one-line description, or null if nothing was derivable.
+ *
+ * Temp file + rename, the way wmux saves its own prefs (wmux src/main/claude-context.ts
+ * writeJsonAtomic): several panes rewrite this one file, and an interrupted in-place
+ * rewrite leaves a truncated file pi fails to parse — pi swallows that error and does
+ * not retry, so every pane keeps stale colours and nobody is told. renameSync maps onto
+ * MoveFileExW/MOVEFILE_REPLACE_EXISTING, so the path is never absent and never half-full.
+ * The write-if-changed guard stays: the duplicate writes from the other panes are no-ops.
+ * shortcut: on Windows the rename fails with EPERM if another process is holding the
+ * target open at that moment (measured) — pi reads this file open-read-close and never
+ * holds it, and the next change retries, so no fallback is worth its cost yet.
+ */
 export function writeWmuxTheme(): string | null {
   const built = buildWmuxTheme();
   if (!built) return null;
@@ -298,8 +310,21 @@ export function writeWmuxTheme(): string | null {
     /* first run */
   }
   if (previous !== json) {
+    // pid in the name: the panes each write the same target, and two of them sharing one
+    // temp path would mean one rename stealing the other's file.
+    const tmp = `${THEME_OUT}.${process.pid}.tmp`;
     fs.mkdirSync(path.dirname(THEME_OUT), { recursive: true });
-    fs.writeFileSync(THEME_OUT, json, "utf-8");
+    try {
+      fs.writeFileSync(tmp, json, "utf-8");
+      fs.renameSync(tmp, THEME_OUT);
+    } catch (error) {
+      try {
+        fs.rmSync(tmp, { force: true }); // a leftover temp would sit in the dir pi watches
+      } catch {
+        /* the temp is already gone, or locked by whatever failed the write */
+      }
+      throw error;
+    }
   }
   return `${built.theme.appearance} from ${built.source}`;
 }
