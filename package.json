@@ -1,0 +1,44 @@
+{
+  "name": "pi-wmux-palette",
+  "version": "1.0.0",
+  "description": "Pi extension that paints pi's panels with wmux's current terminal palette",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "pi-coding-agent",
+    "wmux",
+    "theme",
+    "palette",
+    "colors"
+  ],
+  "author": {
+    "name": "Richard Aubin",
+    "url": "https://github.com/richardaubin"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richardaubin/pi-wmux-palette.git"
+  },
+  "homepage": "https://github.com/richardaubin/pi-wmux-palette#readme",
+  "bugs": {
+    "url": "https://github.com/richardaubin/pi-wmux-palette/issues"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test test/"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@types/node": "*",
+    "typescript": "*"
+  }
+}
