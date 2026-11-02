@@ -17,6 +17,11 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 - The dev-checkout fallback for wmux's `resources/themes` now points at
   `L:\repos\wmux\resources\themes` — the old `L:\repos\wmux\wmux\…` path never
   existed, so a theme name found only in a wmux checkout resolved to nothing.
+- `themes/wmux.json` is now replaced atomically — written to a temp file beside it,
+  then renamed over it, the way wmux saves its own preferences — and the temp file is
+  deleted if the write or the rename fails. Several panes rewrite that one file in
+  place, and one that died mid-write left a truncated file pi silently failed to parse:
+  every pane kept stale colours and nothing retried until the next change.
 
 ## [1.0.0] - 2026-11-02
 
