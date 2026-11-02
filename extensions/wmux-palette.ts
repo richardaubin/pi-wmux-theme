@@ -64,7 +64,7 @@ function wmuxThemesDirs(): string[] {
   const dirs: string[] = [];
   if (process.env.WMUX_CLI) dirs.push(path.join(path.dirname(process.env.WMUX_CLI), "..", "themes"));
   if (process.env.PROGRAMFILES) dirs.push(path.join(process.env.PROGRAMFILES, "wmux", "resources", "themes"));
-  dirs.push("C:\\Program Files\\wmux\\resources\\themes", "L:\\repos\\wmux\\wmux\\resources\\themes");
+  dirs.push("C:\\Program Files\\wmux\\resources\\themes", "L:\\repos\\wmux\\resources\\themes");
   return dirs.filter((d) => {
     try {
       return fs.statSync(d).isDirectory();

@@ -12,6 +12,12 @@ To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git
 
 ## [Unreleased]
 
+### Fixed
+
+- The dev-checkout fallback for wmux's `resources/themes` now points at
+  `L:\repos\wmux\resources\themes` — the old `L:\repos\wmux\wmux\…` path never
+  existed, so a theme name found only in a wmux checkout resolved to nothing.
+
 ## [1.0.0] - 2026-11-02
 
 First packaged release. Previously this was an unversioned single file,
