@@ -2,7 +2,7 @@
  * End-to-end seam (issue #2): the whole extension, driven from a test against a
  * fake wmux and a fake pi. No wmux process, no pi process.
  *
- * This file is separate from test/wmux-palette.test.ts on purpose: the extension
+ * This file is separate from test/wmux-theme.test.ts on purpose: the extension
  * reads its paths and its in-wmux gate at module load, so the fixture has to be in
  * place BEFORE the module is imported, and a static import would beat the fixture.
  */
@@ -15,14 +15,14 @@ import { fakePi, fakeWmux, writeWmuxPrefs } from "./fakes.ts";
 const fx = fakeWmux({ inWmux: true });
 after(fx.cleanup);
 
-const { default: wmuxPalette } = await import("../extensions/wmux-palette.ts");
+const { default: wmuxTheme } = await import("../extensions/wmux-theme.ts");
 
 // Expected colours are read off the fixture in test/fakes.ts by hand: a palette slot
 // appears as itself, and a mix is base + (target - base) * t rounded (mix("#101010",
 // "#0000ff", 0.28) → r 16-4.48=11.5→0c, b 16+66.9=82.9→53).
 test("a session started inside wmux writes pi's theme from the fixture palette", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   const theme = JSON.parse(readFileSync(fx.themeOut, "utf-8"));
@@ -42,7 +42,7 @@ test("a session started inside wmux writes pi's theme from the fixture palette",
 
 test("it selects that theme in pi by the name it wrote, and says which wmux theme it derived", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   const name = (JSON.parse(readFileSync(fx.themeOut, "utf-8")) as { name: string }).name;
@@ -68,12 +68,12 @@ test("it selects that theme in pi by the name it wrote, and says which wmux them
  */
 test("a rewrite replaces the theme file instead of rewriting it in place", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   const before = statSync(fx.themeOut);
   writeWmuxPrefs(fx.prefsFile, "seam-light"); // wmux saving its prefs is what the watcher ticket will trigger on
-  await pi.runCommand(); // …here the extension's own /wmux-palette handler is the re-read, so no clock is involved
+  await pi.runCommand(); // …here the extension's own /wmux-theme handler is the re-read, so no clock is involved
 
   const after = statSync(fx.themeOut);
   assert.notEqual(after.ino, before.ino); // a new file object took its place, the old one was never emptied
@@ -94,7 +94,7 @@ test("a rewrite replaces the theme file instead of rewriting it in place", async
  */
 (process.platform === "win32" ? test : test.skip)("a failed replace keeps the previous theme file and leaves no temp file", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
   const before = readFileSync(fx.themeOut, "utf-8");
 
@@ -112,7 +112,7 @@ test("a rewrite replaces the theme file instead of rewriting it in place", async
 
 test("a wmux theme whose background is light gets pi's light base", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   writeWmuxPrefs(fx.prefsFile, "seam-light");

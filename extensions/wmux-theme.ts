@@ -1,5 +1,5 @@
 /**
- * wmux-palette — pi takes wmux's terminal colours, and keeps taking them when the
+ * wmux-theme — pi takes wmux's terminal colours, and keeps taking them when the
  * user changes wmux's theme in Settings → Terminal.
  *
  * Why (measured 2026-11-02, wmux 2.54.0, pi 1.4.0):
@@ -48,7 +48,12 @@ const THEME_OUT = path.join(AGENT_DIR, "themes", `${THEME_NAME}.json`);
 // The theme setting pi had before this extension picked "wmux", kept so a session
 // started outside wmux can be put back to it. shortcut: a hand-written value is
 // assumed to be a plain theme name; an auto "a/b" setting falls back to "system".
-const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-palette-original-theme.txt");
+const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-theme-original-theme.txt");
+// The name that marker had before this package was renamed (it was pi-wmux-palette). An
+// install upgraded in place has its saved theme only under the old name — the marker is
+// never rewritten while pi is already on "wmux" — so the outside-wmux undo looks there too,
+// or it would restore "system" instead of the theme that session had.
+const ORIGINAL_THEME_FILE_PRE_RENAME = path.join(AGENT_DIR, "wmux-palette-original-theme.txt");
 // wmux's own persisted prefs block: the "wmux-terminal-prefs" key of that file.
 const WMUX_SETTINGS = path.join(process.env.APPDATA ?? "", "wmux", "settings.json");
 // Watched as a DIRECTORY, not as a file: wmux saves by writing settings.json.tmp in the
@@ -355,20 +360,20 @@ const readSettingFile = (file: string): string | undefined => {
   }
 };
 
-export default function wmuxPalette(pi: ExtensionAPI) {
+export default function wmuxTheme(pi: ExtensionAPI) {
   // Outside wmux: no palette is derivable and none should be used. Restore the theme
   // setting a wmux session left behind, so Windows Terminal keeps its own colours.
   if (!IN_WMUX) {
     pi.on("session_start", async (_event, ctx) => {
       if (ctx.hasUI && pi.getSettings().theme === THEME_NAME) {
-        const back = readSettingFile(ORIGINAL_THEME_FILE) ?? "system";
+        const back = readSettingFile(ORIGINAL_THEME_FILE) ?? readSettingFile(ORIGINAL_THEME_FILE_PRE_RENAME) ?? "system";
         const result = ctx.ui.setTheme(back);
-        ctx.ui.notify?.(result.success ? `wmux palette: not inside wmux, theme back to "${back}"` : "wmux palette: not inside wmux, but the theme could not be put back", result.success ? "info" : "warning");
+        ctx.ui.notify?.(result.success ? `wmux theme: not inside wmux, theme back to "${back}"` : "wmux theme: not inside wmux, but the theme could not be put back", result.success ? "info" : "warning");
       }
     });
-    pi.registerCommand("wmux-palette", {
+    pi.registerCommand("wmux-theme", {
       description: "Rewrite pi's `wmux` theme from wmux's current terminal palette",
-      handler: async (_args, ctx) => ctx.ui.notify?.("wmux palette: this session is not running inside wmux (WMUX=1 is not set)", "warning"),
+      handler: async (_args, ctx) => ctx.ui.notify?.("wmux theme: this session is not running inside wmux (WMUX=1 is not set)", "warning"),
     });
     return;
   }
@@ -383,7 +388,7 @@ export default function wmuxPalette(pi: ExtensionAPI) {
     try {
       result = writeWmuxTheme();
     } catch (error) {
-      console.warn("[wmux-palette] could not read wmux's palette:", (error as Error)?.message ?? error);
+      console.warn("[wmux-theme] could not read wmux's palette:", (error as Error)?.message ?? error);
       return null;
     }
     const changed = result !== last;
@@ -470,22 +475,22 @@ export default function wmuxPalette(pi: ExtensionAPI) {
     if (!ctx.hasUI) return false;
     const applied = ctx.ui.setTheme(THEME_NAME);
     if (!applied.success) {
-      ctx.ui.notify?.(`wmux palette: pi could not load its "${THEME_NAME}" theme: ${applied.error ?? "unknown reason"}`, "warning");
+      ctx.ui.notify?.(`wmux theme: pi could not load its "${THEME_NAME}" theme: ${applied.error ?? "unknown reason"}`, "warning");
     }
     return applied.success;
   };
 
   pi.on("session_start", async (_event, ctx) => {
-    if (select(ctx)) ctx.ui.notify?.(`wmux palette: ${last} (pi theme "${THEME_NAME}")`, "info");
+    if (select(ctx)) ctx.ui.notify?.(`wmux theme: ${last} (pi theme "${THEME_NAME}")`, "info");
     startWatching();
   });
   pi.on("session_shutdown", () => stopWatching());
 
-  pi.registerCommand("wmux-palette", {
+  pi.registerCommand("wmux-theme", {
     description: "Rewrite pi's `wmux` theme from wmux's current terminal palette",
     handler: async (_args, ctx) => {
       const selected = select(ctx);
-      ctx.ui.notify?.(last ? `wmux palette: ${last}${selected ? " (pi theme \"wmux\")" : " — theme not selected"}` : "wmux palette not found — is wmux's settings.json readable?", last ? "info" : "warning");
+      ctx.ui.notify?.(last ? `wmux theme: ${last}${selected ? " (pi theme \"wmux\")" : " — theme not selected"}` : "wmux theme: no wmux palette found — is wmux's settings.json readable?", last ? "info" : "warning");
     },
   });
 }

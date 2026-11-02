@@ -13,11 +13,11 @@ import { fakePi, fakeWmux } from "./fakes.ts";
 const fx = fakeWmux({ inWmux: true, cliLayout: "checkout" }); // WMUX_CLI in dist/cli, themes in resources/themes
 after(fx.cleanup);
 
-const { default: wmuxPalette } = await import("../extensions/wmux-palette.ts");
+const { default: wmuxTheme } = await import("../extensions/wmux-theme.ts");
 
 test("a wmux running from a source checkout still finds its themes", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   // No themes directory found would mean no theme file at all: wmux's palette would resolve

@@ -1,4 +1,4 @@
-# pi-wmux-palette
+# pi-wmux-theme
 
 A [pi](https://github.com/earendil-works/pi) extension that paints pi's panels with
 [wmux](https://github.com/amirlehmam/wmux)'s current terminal palette, and keeps
@@ -28,17 +28,26 @@ all.
 ## Install
 
 ```bash
-pi install git:github.com/richardaubin/pi-wmux-palette
+pi install git:github.com/richardaubin/pi-wmux-theme
 ```
 
 Try it once, without adding it to your settings:
 
 ```bash
-pi -e git:github.com/richardaubin/pi-wmux-palette
+pi -e git:github.com/richardaubin/pi-wmux-theme
 ```
 
 Then restart pi inside a wmux terminal. pi selects the generated `wmux` theme
 itself — no `/settings` step.
+
+The repository used to be `pi-wmux-palette`. An install made under that name still works
+(GitHub redirects the clone), but pi tracks a git package by its URL, so moving it over is
+a remove plus an install:
+
+```bash
+pi remove git:github.com/richardaubin/pi-wmux-palette
+pi install git:github.com/richardaubin/pi-wmux-theme
+```
 
 ## Requirements
 
@@ -61,13 +70,13 @@ own colours.
 
 ## Command
 
-`/wmux-palette` — rebuild `<agent-dir>/themes/wmux.json` from wmux's current
+`/wmux-theme` — rebuild `<agent-dir>/themes/wmux.json` from wmux's current
 palette and report which wmux theme and appearance it derived.
 
 ## Roll back
 
 ```bash
-pi remove git:github.com/richardaubin/pi-wmux-palette
+pi remove git:github.com/richardaubin/pi-wmux-theme
 ```
 
 Then, if pi is still on the generated theme: set `theme` back in
@@ -81,7 +90,7 @@ npm run check   # tsc --noEmit
 npm test        # node --test (Node 23.6+ to strip the types)
 ```
 
-`pi --extension ./extensions/wmux-palette.ts` loads it in one invocation while you
+`pi --extension ./extensions/wmux-theme.ts` loads it in one invocation while you
 edit it.
 
 ## Versioning & releases
@@ -97,9 +106,9 @@ git tag vX.Y.Z && git push && git push --tags
 Your install here is unpinned, so it tracks the default branch:
 
 ```bash
-pi update git:github.com/richardaubin/pi-wmux-palette   # newest commit
+pi update git:github.com/richardaubin/pi-wmux-theme   # newest commit
 pi update                                               # all packages
-pi install git:github.com/richardaubin/pi-wmux-palette@v1.0.0   # pin instead
+pi install git:github.com/richardaubin/pi-wmux-theme@v1.1.1   # pin instead
 ```
 
 ## Credits

@@ -1,7 +1,7 @@
 /**
  * End-to-end seam, the trigger (issue #3): what makes the extension re-read wmux, and
  * what must not. Its own file because these tests have to own the whole watcher
- * lifecycle — the instances started by test/wmux-palette-session.test.ts would still be
+ * lifecycle — the instances started by test/wmux-theme-session.test.ts would still be
  * watching a fixture directory of their own, and every file gets its own process and its
  * own fixture under `node --test` (see the header of test/fakes.ts).
  */
@@ -15,7 +15,7 @@ import { DARK_THEME, LIGHT_THEME, fakePi, fakeWmux, wmuxSave, writeWmuxPrefs } f
 const fx = fakeWmux({ inWmux: true });
 after(fx.cleanup);
 
-const { default: wmuxPalette } = await import("../extensions/wmux-palette.ts");
+const { default: wmuxTheme } = await import("../extensions/wmux-theme.ts");
 
 /**
  * The watcher runs on its own clock, so these tests wait for the effect rather than
@@ -71,7 +71,7 @@ const WMUX_CHURN_DIRS = ["sessions", "logs", "chromium"];
 
 test("wmux saving its prefs rebuilds the theme file; every other write in that directory does not", async (t) => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession(); // cold start first: the file must exist before pi is asked to select it
   assert.equal(readTheme()?.appearance, "dark");
 
@@ -101,7 +101,7 @@ test("wmux saving its prefs rebuilds the theme file; every other write in that d
 
 test("session_shutdown releases the watch, so a later save changes nothing", async () => {
   const pi = fakePi("dark");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   setWmuxThemeFile(DARK_THEME); // the same live proof as above, before the shutdown

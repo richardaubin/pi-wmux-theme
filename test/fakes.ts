@@ -86,7 +86,7 @@ export function writeWmuxPrefs(prefsFile: string, theme: string) {
  * Everything is under one temp root, which cleanup() removes.
  */
 export function fakeWmux({ inWmux, theme = "seam-dark", cliLayout = "bin" }: { inWmux: boolean; theme?: string; cliLayout?: "bin" | "checkout" }) {
-  const root = mkdtempSync(path.join(tmpdir(), "wmux-palette-seam-"));
+  const root = mkdtempSync(path.join(tmpdir(), "wmux-theme-seam-"));
   const agentDir = path.join(root, "agent");
   const appData = path.join(root, "appdata");
   const wmuxDir = path.join(root, "wmux");
@@ -121,7 +121,8 @@ export function fakeWmux({ inWmux, theme = "seam-dark", cliLayout = "bin" }: { i
     prefsDir: path.join(appData, "wmux"), // what gets watched: settings.json and the files that churn around it
     themeFilesDir, // what must NOT be watched (wmux caches them per renderer)
     themeOut: path.join(agentDir, "themes", "wmux.json"),
-    originalThemeFile: path.join(agentDir, "wmux-palette-original-theme.txt"),
+    originalThemeFile: path.join(agentDir, "wmux-theme-original-theme.txt"),
+    originalThemeFilePreRename: path.join(agentDir, "wmux-palette-original-theme.txt"), // the name it had before the package was renamed
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }
@@ -179,7 +180,7 @@ export function fakePi(theme?: string) {
       await handlers.get("session_shutdown")?.(SESSION_SHUTDOWN, ctx);
     },
     async runCommand(args = "") {
-      await commands.get("wmux-palette")?.(args, ctx);
+      await commands.get("wmux-theme")?.(args, ctx);
     },
   };
 }

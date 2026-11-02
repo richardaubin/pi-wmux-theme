@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appearanceFor, mix, parseWmuxTheme, wmuxTokens } from "../extensions/wmux-palette.ts";
+import { appearanceFor, mix, parseWmuxTheme, wmuxTokens } from "../extensions/wmux-theme.ts";
 
 // The format wmux's own .theme files use (resources/themes/*.theme).
 const SAMPLE = `# Ayu Dark — https://github.com/ayu-theme/ayu-colors

@@ -14,12 +14,12 @@ import { fakePi, fakeWmux, writeWmuxPrefs } from "./fakes.ts";
 const fx = fakeWmux({ inWmux: false }); // WMUX and WMUX_SURFACE_ID deliberately unset
 after(fx.cleanup);
 
-const { default: wmuxPalette } = await import("../extensions/wmux-palette.ts");
+const { default: wmuxTheme } = await import("../extensions/wmux-theme.ts");
 
 test("a session started outside wmux leaves pi's theme file unwritten", async () => {
   writeFileSync(fx.originalThemeFile, "dark", "utf-8"); // what the earlier wmux session left behind
   const pi = fakePi("wmux"); // …and left pi on the generated theme
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   assert.equal(existsSync(fx.themeOut), false);
@@ -30,11 +30,25 @@ test("a session started outside wmux leaves pi's theme file unwritten", async ()
 test("…and puts back the theme the earlier wmux session picked", async () => {
   writeFileSync(fx.originalThemeFile, "gruvbox", "utf-8");
   const pi = fakePi("wmux");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
-  assert.deepEqual(pi.themes, ["gruvbox"]); // the name kept in wmux-palette-original-theme.txt
+  assert.deepEqual(pi.themes, ["gruvbox"]); // the name kept in wmux-theme-original-theme.txt
   assert.ok(pi.notices.some((n) => n.includes("not inside wmux")), `no notice explains it: ${pi.notices}`);
+});
+
+/**
+ * An install upgraded in place has its saved theme only under the marker's OLD name — the
+ * marker is never rewritten while pi is already on "wmux" — so undoing has to find it there
+ * rather than fall back to "system" and lose the theme that session had.
+ */
+test("…and still finds a marker saved under the name from before the package was renamed", async () => {
+  writeFileSync(fx.originalThemeFilePreRename, "gruvbox", "utf-8");
+  const pi = fakePi("wmux");
+  wmuxTheme(pi.api);
+  await pi.startSession();
+
+  assert.deepEqual(pi.themes, ["gruvbox"]); // not "system", which is what a new-name-only read would give
 });
 
 /**
@@ -44,7 +58,7 @@ test("…and puts back the theme the earlier wmux session picked", async () => {
  */
 test("…and arms no watch, so a wmux prefs save afterwards still writes no theme file", async () => {
   const pi = fakePi("wmux");
-  wmuxPalette(pi.api);
+  wmuxTheme(pi.api);
   await pi.startSession();
 
   writeWmuxPrefs(fx.prefsFile, "seam-dark"); // a real wmux save: temp sibling, then rename over settings.json

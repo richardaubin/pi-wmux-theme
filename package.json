@@ -1,5 +1,5 @@
 {
-  "name": "pi-wmux-palette",
+  "name": "pi-wmux-theme",
   "version": "1.1.1",
   "description": "Pi extension that paints pi's panels with wmux's current terminal palette",
   "type": "module",
@@ -20,18 +20,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richardaubin/pi-wmux-palette.git"
+    "url": "git+https://github.com/richardaubin/pi-wmux-theme.git"
   },
-  "homepage": "https://github.com/richardaubin/pi-wmux-palette#readme",
+  "homepage": "https://github.com/richardaubin/pi-wmux-theme#readme",
   "bugs": {
-    "url": "https://github.com/richardaubin/pi-wmux-palette/issues"
+    "url": "https://github.com/richardaubin/pi-wmux-theme/issues"
   },
   "engines": {
     "node": ">=22.6"
   },
   "pi": {
     "extensions": [
-      "./extensions/wmux-palette.ts"
+      "./extensions/wmux-theme.ts"
     ]
   },
   "scripts": {

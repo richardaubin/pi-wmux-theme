@@ -1,14 +1,33 @@
 # Changelog
 
-All notable changes to **pi-wmux-palette** are documented here.
+All notable changes to **pi-wmux-theme** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [Semantic Versioning](https://semver.org/).
 
 Releases are git tags `vX.Y.Z` pointing at the commit that bumped `version` in
-`package.json`. An unpinned install (`git:github.com/richardaubin/pi-wmux-palette`)
-tracks the default branch, so `pi update git:github.com/richardaubin/pi-wmux-palette`
+`package.json`. An unpinned install (`git:github.com/richardaubin/pi-wmux-theme`)
+tracks the default branch, so `pi update git:github.com/richardaubin/pi-wmux-theme`
 moves it to the newest commit; a pinned install (`…@v1.0.0`) stays where you put it.
 
 To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git push && git push --tags`.
+
+## [Unreleased]
+
+### Changed
+
+- **The package is now `pi-wmux-theme`** (it was `pi-wmux-palette`, "palette" being the wrong
+  word for what it produces): the command is `/wmux-theme`, the extension file is
+  `extensions/wmux-theme.ts`, the GitHub repository is `pi-wmux-theme`, and every notice and
+  log line starts with `wmux theme:` / `[wmux-theme]`. **Breaking** for an existing install in
+  one way only: pi identifies a git package by its repository URL, so an install made under the
+  old name keeps loading that entry (GitHub redirects the clone, so it still updates) — moving
+  it to the new URL is `pi remove git:github.com/richardaubin/pi-wmux-palette` followed by
+  `pi install git:github.com/richardaubin/pi-wmux-theme`. Nothing said about wmux's own
+  vocabulary changed: wmux's `palette = N=#hex` theme slots, the 16-slot colour palette, and the
+  palette a terminal reports over OSC 4/10/11 are still called palettes, in code and in prose.
+- The rollback marker is now `<agent-dir>/wmux-theme-original-theme.txt`. A marker saved under
+  the old name is still read, which is what an install upgraded in place needs: the marker is
+  not rewritten while pi is already on the generated theme, so reading only the new name would
+  have restored `system` instead of the theme that session had.
 
 ## [1.1.1] - 2026-11-02
 
