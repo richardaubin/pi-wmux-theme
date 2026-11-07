@@ -4,7 +4,8 @@ A [pi](https://github.com/earendil-works/pi) extension that paints pi's panels w
 [wmux](https://github.com/amirlehmam/wmux)'s current terminal palette, and keeps
 doing it when you change wmux's theme in **Settings → Terminal**.
 
-It runs only inside wmux; outside wmux it gets out of the way.
+It runs only inside wmux, and only for the session it started in; outside wmux it
+registers nothing at all and pi keeps the theme you set.
 
 ## Why
 
@@ -38,7 +39,8 @@ pi -e git:github.com/richardaubin/pi-wmux-theme
 ```
 
 Then restart pi inside a wmux terminal. pi selects the generated `wmux` theme
-itself — no `/settings` step.
+itself — no `/settings` step — for that session only, so your own `theme` setting
+stays what you made it.
 
 The repository used to be `pi-wmux-palette`. An install made under that name still works
 (GitHub redirects the clone), but pi tracks a git package by its URL, so moving it over is
@@ -64,14 +66,17 @@ The two version numbers are the ones this package is built and tested against
 `.theme` files — if wmux moves either, the extension writes nothing and pi keeps the
 colours it already has rather than guessing.
 
-Outside wmux the extension writes nothing and watches nothing: it only puts back the
-theme setting a previous wmux session left behind, so Windows Terminal keeps its
-own colours.
+Outside wmux the extension registers nothing — no handler, no command, nothing
+written, nothing watched — so pi paints whatever its own settings name. Inside wmux
+the theme is handed to pi as a value rather than by name, which is the only shape pi
+does *not* write into its global settings: a palette picked for wmux never follows pi
+into Windows Terminal.
 
 ## Command
 
 `/wmux-theme` — rebuild `<agent-dir>/themes/wmux.json` from wmux's current
-palette and report which wmux theme and appearance it derived.
+palette and report which wmux theme and appearance it derived. Registered only in
+a session that started inside wmux.
 
 ## Roll back
 
@@ -79,8 +84,10 @@ palette and report which wmux theme and appearance it derived.
 pi remove git:github.com/richardaubin/pi-wmux-theme
 ```
 
-Then, if pi is still on the generated theme: set `theme` back in
-`<agent-dir>/settings.json` and delete `<agent-dir>/themes/wmux.json`.
+Then delete `<agent-dir>/themes/wmux.json` — that is all this package writes, since
+it never changes pi's `theme` setting. An install of **1.1.x or older** may have left
+`"theme": "wmux"` in `<agent-dir>/settings.json`; put that key back once (to `system`,
+`dark`, `light`, or your own theme) and nothing else refers to the generated file.
 
 ## Development
 

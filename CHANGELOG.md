@@ -10,6 +10,31 @@ moves it to the newest commit; a pinned install (`…@v1.0.0`) stays where you p
 
 To cut a release: edit this file, bump `version`, commit, `git tag vX.Y.Z`, `git push && git push --tags`.
 
+## [Unreleased]
+
+### Fixed
+
+- **pi started outside wmux is no longer affected at all.** Earlier versions selected the
+  generated theme by name, and pi writes a theme named to it into its global
+  `<agent-dir>/settings.json` — so the choice made inside wmux followed pi into Windows
+  Terminal, where wmux's palette says nothing about that terminal's colours. The extension
+  then undid that at `session_start`, which meant pi still started on the wmux colours, then
+  flipped, and said so. Now the theme is handed to pi as a **value** (the `Theme` loaded from
+  `<agent-dir>/themes/wmux.json`), the only shape pi paints without persisting: the session
+  shows it, pi's `theme` setting is never touched, and nothing is left to undo.
+- Outside wmux the extension now registers **nothing** — no `session_start` handler, no
+  `/wmux-theme` command, no write, no watch — instead of registering an undo for the leaked
+  setting. pi paints exactly what its own settings name.
+
+### Changed
+
+- A rebuild from a wmux theme change repaints the session itself (pi's own reload of its
+  themes directory only covers a theme selected by name, and this is no longer one).
+- **Removed** the rollback marker `<agent-dir>/wmux-theme-original-theme.txt` (and the
+  pre-rename `wmux-palette-original-theme.txt` it also read): there is no longer a theme
+  setting to roll back. An install upgrading from 1.1.x or older keeps whatever `theme` the
+  old version wrote — set it back once, in `<agent-dir>/settings.json` or with `/settings`.
+
 ## [1.1.2] - 2026-11-02
 
 ### Changed

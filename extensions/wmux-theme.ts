@@ -19,14 +19,16 @@
  * theme change lands in pi in about 150 ms and nothing at all happens while nothing
  * changes.
  *
- * Only inside wmux. wmux's palette says nothing about Windows Terminal or any other
- * terminal, and a theme selection lives in pi's settings, which are global — so
- * outside wmux this file does not write, nothing is watched, and it does the one thing
- * that is still its business: undo a wmux pick left over from an earlier wmux session.
- * That is the same gate wmux's own pi extension uses: WMUX=1 plus a surface id.
+ * Only inside wmux, and only for the session it started in. Outside wmux (WMUX=1 plus a
+ * surface id unset — the same gate wmux's own pi extension uses) it registers nothing: no
+ * handler, no command, nothing written, nothing watched, so pi paints whatever its own
+ * settings say. Inside wmux the theme is handed to pi as a VALUE, not as a name, because
+ * pi writes a theme it is given by name into its global settings — and a theme picked for
+ * wmux must not follow pi into Windows Terminal, where wmux's palette says nothing about
+ * the colours that terminal really has.
  *
- * Roll back: set "theme" back in <agent-dir>/settings.json and delete
- * <agent-dir>/themes/wmux.json.
+ * Roll back: delete <agent-dir>/themes/wmux.json. Nothing else has to be undone — pi's
+ * settings never mention "wmux".
  */
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -45,15 +47,6 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
 const THEME_NAME = "wmux";
 const THEME_OUT = path.join(AGENT_DIR, "themes", `${THEME_NAME}.json`);
-// The theme setting pi had before this extension picked "wmux", kept so a session
-// started outside wmux can be put back to it. shortcut: a hand-written value is
-// assumed to be a plain theme name; an auto "a/b" setting falls back to "system".
-const ORIGINAL_THEME_FILE = path.join(AGENT_DIR, "wmux-theme-original-theme.txt");
-// The name that marker had before this package was renamed (it was pi-wmux-palette). An
-// install upgraded in place has its saved theme only under the old name — the marker is
-// never rewritten while pi is already on "wmux" — so the outside-wmux undo looks there too,
-// or it would restore "system" instead of the theme that session had.
-const ORIGINAL_THEME_FILE_PRE_RENAME = path.join(AGENT_DIR, "wmux-palette-original-theme.txt");
 // wmux's own persisted prefs block: the "wmux-terminal-prefs" key of that file.
 const WMUX_SETTINGS = path.join(process.env.APPDATA ?? "", "wmux", "settings.json");
 // Watched as a DIRECTORY, not as a file: wmux saves by writing settings.json.tmp in the
@@ -352,37 +345,38 @@ export function writeWmuxTheme(): string | null {
   return `${built.theme.appearance} from ${built.source}`;
 }
 
-const readSettingFile = (file: string): string | undefined => {
-  try {
-    return fs.readFileSync(file, "utf-8").trim() || undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 export default function wmuxTheme(pi: ExtensionAPI) {
-  // Outside wmux: no palette is derivable and none should be used. Restore the theme
-  // setting a wmux session left behind, so Windows Terminal keeps its own colours.
-  if (!IN_WMUX) {
-    pi.on("session_start", async (_event, ctx) => {
-      if (ctx.hasUI && pi.getSettings().theme === THEME_NAME) {
-        const back = readSettingFile(ORIGINAL_THEME_FILE) ?? readSettingFile(ORIGINAL_THEME_FILE_PRE_RENAME) ?? "system";
-        const result = ctx.ui.setTheme(back);
-        ctx.ui.notify?.(result.success ? `wmux theme: not inside wmux, theme back to "${back}"` : "wmux theme: not inside wmux, but the theme could not be put back", result.success ? "info" : "warning");
-      }
-    });
-    pi.registerCommand("wmux-theme", {
-      description: "Rewrite pi's `wmux` theme from wmux's current terminal palette",
-      handler: async (_args, ctx) => ctx.ui.notify?.("wmux theme: this session is not running inside wmux (WMUX=1 is not set)", "warning"),
-    });
-    return;
-  }
+  // Outside wmux this does not run at all: no handler, no command, no write, no watch.
+  // What pi's own settings say about its theme is nobody else's business.
+  if (!IN_WMUX) return;
 
   // Pi cannot detect that wmux draws OSC 8 links; wmux's own extension does the same
   // for the image protocol. Settings are global, so it belongs here.
   process.env.PI_HYPERLINKS ??= "1";
 
   let last: string | null = null;
+  // The session showing the theme, so a rebuild can put the new colours back.
+  let shown: ExtensionContext | undefined;
+
+  /**
+   * Show the theme this file describes. What pi is handed is the theme VALUE it loads from
+   * that file, not the name: pi persists a theme named to it in its global settings, and an
+   * in-memory theme dies with the session — that is what keeps a wmux palette out of pi
+   * started anywhere else. It also means pi's own reload of its themes directory no longer
+   * covers this file, so every rebuild has to come back through here.
+   * shortcut: the file still sits in <agent-dir>/themes, so pi's theme picker lists "wmux"
+   * outside wmux too; nothing selects it there.
+   */
+  const show = (ctx: ExtensionContext): boolean => {
+    const theme = ctx.ui.getTheme(THEME_NAME);
+    if (!theme) {
+      ctx.ui.notify?.(`wmux theme: pi could not load its "${THEME_NAME}" theme — does ${THEME_OUT} exist?`, "warning");
+      return false;
+    }
+    ctx.ui.setTheme(theme);
+    return true;
+  };
+
   const refresh = (): string | null => {
     let result: string | null = null;
     try {
@@ -411,12 +405,17 @@ export default function wmuxTheme(pi: ExtensionAPI) {
   let debounce: ReturnType<typeof setTimeout> | undefined;
   let rearm: ReturnType<typeof setTimeout> | undefined;
 
+  /** One save, one rebuild — and only a rebuild that changed the colours repaints. */
+  const rebuild = () => {
+    if (refresh() !== null && shown) show(shown);
+  };
+
   const onPrefsSave: fs.WatchListener<string> = (_event, name) => {
     // A name means the platform knows which entry moved: only the prefs file is one.
     // No name means it could not say, so treat it as real rather than lose the change.
     if (name && name !== WMUX_SETTINGS_NAME) return;
     clearTimeout(debounce); // the burst lands in one millisecond: one trailing timer, one rebuild
-    debounce = setTimeout(refresh, REBUILD_DEBOUNCE_MS);
+    debounce = setTimeout(rebuild, REBUILD_DEBOUNCE_MS);
     debounce.unref();
   };
 
@@ -459,29 +458,18 @@ export default function wmuxTheme(pi: ExtensionAPI) {
     watcher = next;
   };
 
-  /** Select the generated theme by name, which is what arms pi's reload watcher. */
+  /** Write pi's theme file, then show what it describes in this session. */
   const select = (ctx: ExtensionContext): boolean => {
-    const current = pi.getSettings().theme;
-    if (current && current !== THEME_NAME) {
-      try {
-        replaceFileAtomically(ORIGINAL_THEME_FILE, current);
-      } catch {
-        /* losing it only costs the undo outside wmux */
-      }
-    }
+    shown = ctx;
     refresh();
     // print and JSON mode have no UI, so there is no theme to switch there; the
     // file is still written, so the colours are ready for the next interactive run.
     if (!ctx.hasUI) return false;
-    const applied = ctx.ui.setTheme(THEME_NAME);
-    if (!applied.success) {
-      ctx.ui.notify?.(`wmux theme: pi could not load its "${THEME_NAME}" theme: ${applied.error ?? "unknown reason"}`, "warning");
-    }
-    return applied.success;
+    return show(ctx);
   };
 
   pi.on("session_start", async (_event, ctx) => {
-    if (select(ctx)) ctx.ui.notify?.(`wmux theme: ${last} (pi theme "${THEME_NAME}")`, "info");
+    if (select(ctx)) ctx.ui.notify?.(`wmux theme: ${last} (pi theme "${THEME_NAME}", this session only)`, "info");
     startWatching();
   });
   pi.on("session_shutdown", () => stopWatching());
@@ -490,7 +478,7 @@ export default function wmuxTheme(pi: ExtensionAPI) {
     description: "Rewrite pi's `wmux` theme from wmux's current terminal palette",
     handler: async (_args, ctx) => {
       const selected = select(ctx);
-      ctx.ui.notify?.(last ? `wmux theme: ${last}${selected ? " (pi theme \"wmux\")" : " — theme not selected"}` : "wmux theme: no wmux palette found — is wmux's settings.json readable?", last ? "info" : "warning");
+      ctx.ui.notify?.(last ? `wmux theme: ${last}${selected ? ` (pi theme "${THEME_NAME}", this session only)` : " — theme not shown"}` : "wmux theme: no wmux palette found — is wmux's settings.json readable?", last ? "info" : "warning");
     },
   });
 }

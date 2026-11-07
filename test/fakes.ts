@@ -13,7 +13,7 @@
  * This file must NOT import the extension: importing it here would freeze the
  * environment of whichever test file happened to import fakes first.
  */
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, SessionShutdownEvent, SessionStartEvent } from "@earendil-works/pi-coding-agent";
@@ -121,8 +121,7 @@ export function fakeWmux({ inWmux, theme = "seam-dark", cliLayout = "bin" }: { i
     prefsDir: path.join(appData, "wmux"), // what gets watched: settings.json and the files that churn around it
     themeFilesDir, // what must NOT be watched (wmux caches them per renderer)
     themeOut: path.join(agentDir, "themes", "wmux.json"),
-    originalThemeFile: path.join(agentDir, "wmux-theme-original-theme.txt"),
-    originalThemeFilePreRename: path.join(agentDir, "wmux-palette-original-theme.txt"), // the name it had before the package was renamed
+    themesDir: path.join(agentDir, "themes"),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }
@@ -131,10 +130,14 @@ export const SESSION_START: SessionStartEvent = { type: "session_start", reason:
 export const SESSION_SHUTDOWN: SessionShutdownEvent = { type: "session_shutdown", reason: "quit" };
 
 /**
- * The smallest pi the extension will accept: it only ever calls `on`,
- * `registerCommand` and `getSettings`, and a fake ctx only `hasUI` and
- * `ui.setTheme`/`ui.notify`. What the extension asks for is recorded in
- * `themes`/`notices` instead of painting anything.
+ * The smallest pi the extension will accept: it only ever calls `on`, `registerCommand`
+ * and `getSettings`, and a fake ctx only `hasUI` and `ui.getTheme`/`ui.setTheme`/
+ * `ui.notify`. What the extension asks for is recorded in `themes`/`notices` instead of
+ * painting anything.
+ *
+ * `setTheme` refuses a NAME on purpose: pi writes a theme named to it into its global
+ * settings.json, which is the leak this package must not re-open (see the header of
+ * extensions/wmux-theme.ts). Only an in-memory theme keeps the choice inside the session.
  */
 export function fakePi(theme?: string) {
   const handlers = new Map<string, (event: any, ctx: any) => unknown>();
@@ -142,11 +145,20 @@ export function fakePi(theme?: string) {
   const themes: string[] = [];
   const notices: string[] = [];
 
+  // pi loads a custom theme from <agent-dir>/themes, so the fake finds one only once the
+  // extension has written it — which is what makes a session_start that read wmux but never
+  // wrote the file fail here instead of passing on a fake that always answers.
+  const agentDir = process.env.PI_CODING_AGENT_DIR!;
+
   const ctx = {
     hasUI: true,
     ui: {
-      setTheme: (name: string) => {
-        themes.push(name);
+      getTheme: (name: string) => (existsSync(path.join(agentDir, "themes", `${name}.json`)) ? { name } : undefined),
+      setTheme: (value: string | { name: string }) => {
+        if (typeof value === "string") {
+          throw new Error(`setTheme("${value}") would make pi write "${value}" into its global settings.json — pass the theme value instead`);
+        }
+        themes.push(value.name);
         return { success: true };
       },
       notify: (message: string) => {

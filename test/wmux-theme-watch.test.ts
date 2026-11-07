@@ -95,6 +95,9 @@ test("wmux saving its prefs rebuilds the theme file; every other write in that d
   assert.ok(theme, `a prefs save did not rebuild the theme within ${REBUILD_DEADLINE} ms`);
   assert.equal(theme.vars.text, "#1a1a1a"); // the light fixture's foreground …
   assert.equal(theme.export.pageBg, "#f5f5f5"); // … and background, i.e. it really re-read
+  // pi was shown the theme once at session_start; the rebuild has to show it again, because
+  // an in-memory theme is not one pi reloads from its themes directory on its own.
+  assert.deepEqual(pi.themes, ["wmux", "wmux"], `the rebuild did not repaint pi: ${pi.themes}`);
 
   await pi.endSession();
 });

@@ -1,14 +1,14 @@
 /**
- * End-to-end seam, the other side of the gate (issue #2): a session whose
- * environment says it is not inside wmux. Its own file because the extension reads
- * WMUX/WMUX_SURFACE_ID once, at module load, and one process carries one module
- * instance — see the header of test/fakes.ts.
+ * End-to-end seam, the other side of the gate (issue #2): a session whose environment says
+ * it is not inside wmux. There the extension has to be INERT — pi is left with whatever
+ * theme its own settings name, so it must not be asked to paint anything, told anything, or
+ * given a command to run. Its own file because the extension reads WMUX/WMUX_SURFACE_ID once,
+ * at module load, and one process carries one module instance — see the header of test/fakes.ts.
  */
 import assert from "node:assert/strict";
-import { existsSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { existsSync } from "node:fs";
 import { after, test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { fakePi, fakeWmux, writeWmuxPrefs } from "./fakes.ts";
 
 const fx = fakeWmux({ inWmux: false }); // WMUX and WMUX_SURFACE_ID deliberately unset
@@ -16,47 +16,30 @@ after(fx.cleanup);
 
 const { default: wmuxTheme } = await import("../extensions/wmux-theme.ts");
 
-test("a session started outside wmux leaves pi's theme file unwritten", async () => {
-  writeFileSync(fx.originalThemeFile, "dark", "utf-8"); // what the earlier wmux session left behind
-  const pi = fakePi("wmux"); // …and left pi on the generated theme
+test("a session started outside wmux registers nothing: no handler, no /wmux-theme", () => {
+  const pi = fakePi("dark");
+  wmuxTheme(pi.api);
+
+  assert.deepEqual([...pi.handlers.keys()], [], "the extension subscribed to pi's lifecycle outside wmux");
+  assert.deepEqual([...pi.commands.keys()], [], "the extension added a command to pi outside wmux");
+});
+
+test("…so pi keeps the theme its own settings name: nothing written, painted, or said", async () => {
+  const pi = fakePi("wmux"); // pi left on the generated theme by an older install — still not this extension's business
   wmuxTheme(pi.api);
   await pi.startSession();
 
+  assert.deepEqual(pi.themes, [], "the extension switched pi's theme outside wmux");
+  assert.deepEqual(pi.notices, [], "the extension talked to the user outside wmux");
   assert.equal(existsSync(fx.themeOut), false);
-  assert.equal(existsSync(path.join(fx.agentDir, "themes")), false);
-  assert.deepEqual(pi.themes, ["dark"]); // put back, not left on wmux
-});
-
-test("…and puts back the theme the earlier wmux session picked", async () => {
-  writeFileSync(fx.originalThemeFile, "gruvbox", "utf-8");
-  const pi = fakePi("wmux");
-  wmuxTheme(pi.api);
-  await pi.startSession();
-
-  assert.deepEqual(pi.themes, ["gruvbox"]); // the name kept in wmux-theme-original-theme.txt
-  assert.ok(pi.notices.some((n) => n.includes("not inside wmux")), `no notice explains it: ${pi.notices}`);
+  assert.equal(existsSync(fx.themesDir), false); // it does not even create the directory pi watches
 });
 
 /**
- * An install upgraded in place has its saved theme only under the marker's OLD name — the
- * marker is never rewritten while pi is already on "wmux" — so undoing has to find it there
- * rather than fall back to "system" and lose the theme that session had.
+ * Inert means inert: no theme file at session_start is not enough, since a wmux window left
+ * open on this machine saves its prefs later and used to drive pi's theme from it.
  */
-test("…and still finds a marker saved under the name from before the package was renamed", async () => {
-  writeFileSync(fx.originalThemeFilePreRename, "gruvbox", "utf-8");
-  const pi = fakePi("wmux");
-  wmuxTheme(pi.api);
-  await pi.startSession();
-
-  assert.deepEqual(pi.themes, ["gruvbox"]); // not "system", which is what a new-name-only read would give
-});
-
-/**
- * The other half of the outside-wmux promise: it is not just that no theme was written at
- * session_start, nothing is WATCHED either, so a wmux that saves its prefs later (a wmux
- * window left open on this machine) must still not make this session write pi's theme.
- */
-test("…and arms no watch, so a wmux prefs save afterwards still writes no theme file", async () => {
+test("…and no watch is armed, so a wmux prefs save afterwards still changes nothing", async () => {
   const pi = fakePi("wmux");
   wmuxTheme(pi.api);
   await pi.startSession();
@@ -64,4 +47,5 @@ test("…and arms no watch, so a wmux prefs save afterwards still writes no them
   writeWmuxPrefs(fx.prefsFile, "seam-dark"); // a real wmux save: temp sibling, then rename over settings.json
   await delay(500); // several times the extension's 150 ms rebuild debounce
   assert.equal(existsSync(fx.themeOut), false, "a session outside wmux armed a watch: a wmux prefs save rebuilt pi's theme");
+  assert.deepEqual(pi.themes, []);
 });

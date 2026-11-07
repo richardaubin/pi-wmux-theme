@@ -40,23 +40,20 @@ test("a session started inside wmux writes pi's theme from the fixture palette",
   assert.deepEqual(readdirSync(path.dirname(fx.themeOut)), ["wmux.json"]); // …and the directory pi watches holds nothing else: no half-written temp left behind
 });
 
-test("it selects that theme in pi by the name it wrote, and says which wmux theme it derived", async () => {
-  const pi = fakePi("dark");
+test("it shows pi the theme it wrote, as a value pi will not persist", async () => {
+  const pi = fakePi("dark"); // pi's own theme setting, which this extension must leave alone
   wmuxTheme(pi.api);
   await pi.startSession();
 
   const name = (JSON.parse(readFileSync(fx.themeOut, "utf-8")) as { name: string }).name;
-  assert.deepEqual(pi.themes, [name]); // pi is asked for the theme by the name the file carries
-  assert.equal(path.basename(fx.themeOut), `${name}.json`); // …which is the file pi hot-reloads
+  assert.deepEqual(pi.themes, [name]); // pi is shown the theme the file carries — and fakePi throws on a NAME, which is what pi would write to settings.json
+  assert.equal(path.basename(fx.themeOut), `${name}.json`); // …loaded from the file it was built from
   assert.ok(pi.notices.some((n) => n.includes("seam-dark")), `no notice names the wmux theme: ${pi.notices}`);
-  assert.equal(readFileSync(fx.originalThemeFile, "utf-8"), "dark"); // the pick it replaced, kept for the undo outside wmux
-
-  // Every pane rewrites that marker too, so it gets the same replace rather than an in-place
-  // rewrite: a truncated one would make a later session outside wmux restore garbage as a
-  // theme name. The same NTFS file-index fingerprint as the theme file below.
-  const marker = statSync(fx.originalThemeFile);
-  await pi.runCommand(); // selects again, so the marker is written a second time
-  assert.notEqual(statSync(fx.originalThemeFile).ino, marker.ino); // replaced, not rewritten in place
+  assert.deepEqual(
+    readdirSync(fx.agentDir).filter((entry) => entry.includes("original")),
+    [],
+    "the extension left a rollback marker behind — it no longer touches pi's theme setting, so it has nothing to undo",
+  );
 });
 
 /**
